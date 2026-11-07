@@ -882,6 +882,54 @@
   $('expTrim').addEventListener('click', () => { pushHistory(); S.outT = Math.min(S.L, S.inT + GIF_MAX); refreshExportForm(); });
   window.addEventListener('resize', resizeTimeline);
 
+  // ── 소리 싱크 (다듬기): 소리만 앞뒤로 옮김. 미리보기는 옮긴 소리로 다시 포장 ──
+  function setupAudioSync(tr) {
+    const box = tr.mon.querySelector('.sync');
+    if (tr.isGif || !tr.meta.audio) { box.hidden = true; return; }
+    box.title = '저장한 영상에서 소리가 화면보다 빠르면 +, 느리면 −';
+    box.replaceChildren();
+    const mk = (text, d, title) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = text; b.title = title;
+      b.addEventListener('click', e => { e.stopPropagation(); set(tr.audioShiftMs + d); });
+      return b;
+    };
+    const input = document.createElement('input');
+    input.type = 'number'; input.step = '10'; input.value = '0';
+    input.setAttribute('aria-label', '소리 싱크(ms)');
+    input.addEventListener('keydown', e => e.stopPropagation());
+    input.addEventListener('change', () => set(Number(input.value) || 0));
+    box.append('소리 싱크 ', mk('−', -50, '소리를 0.05초 앞으로'), input, ' ms ', mk('+', 50, '소리를 0.05초 뒤로'));
+    const hint = document.createElement('div');
+    hint.className = 'syncHint';
+    hint.textContent = '소리가 빠르면 +, 느리면 −';
+    box.after(hint);
+    tr.a0 = tr.a;
+    tr.audioShiftMs = 0;
+    let timer = null;
+    function set(ms) {
+      ms = Math.max(-2000, Math.min(2000, Math.round(ms / 10) * 10));
+      tr.audioShiftMs = ms;
+      input.value = String(ms);
+      clearTimeout(timer);
+      timer = setTimeout(() => apply(ms), 250);
+    }
+    function apply(ms) {
+      const sh = ms * 1000;
+      tr.a = tr.a0.map(c => ({ ...c, ts: c.ts + sh })).filter(c => c.ts >= 0 && c.ts < tr.durUs);
+      tr.pcm = undefined; // 내보내기용 소리 다시 풀기
+      // 미리보기 다시 포장 (재압축 없음)
+      const old = tr.url;
+      buildPreview(tr);
+      if (tr.el) {
+        tr.el.src = tr.url;
+        tr.el.currentTime = Math.max(0, S.t - tr.pos);
+      }
+      if (old) setTimeout(() => URL.revokeObjectURL(old), 1000);
+      setStatus(ms ? `소리를 ${Math.abs(ms)}ms ${ms > 0 ? '늦췄습니다' : '앞당겼습니다'}` : '소리 싱크를 원래대로 돌렸습니다', 'ok');
+    }
+  }
+
   // 다듬기 모드: 교차편집 전용 버튼 숨김, 처음 범위는 저장 길이
   async function setupTrimMode(when) {
     const tr = S.tracks[0];
@@ -891,7 +939,7 @@
       (tr.isGif ? ' (움짤 버퍼 · 소리 없음)' : '');
     $('autoSync').hidden = true;
     $('exportBtn').textContent = '저장하기 (MP4 / 움짤)';
-    tr.mon.querySelector('.sync').hidden = true; // 트랙 하나라 싱크 불필요
+    setupAudioSync(tr); // 트랙 하나: 방송 간 싱크 대신 소리↔화면 싱크
     tr.mon.title = '';
     const help = document.querySelector('.help');
     help.replaceChildren(...[

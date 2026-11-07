@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "치지직용 간단 클리퍼(비공식)",
-  "version": "1.14.3",
+  "version": "1.15.0",
   "description": "치지직 방송을 단축키로 움짤(WebP)·영상(MP4)으로 저장하는 개인 감상용 비공식 도구입니다. 네이버·치지직과 관련 없습니다.",
   "minimum_chrome_version": "116",
   "permissions": [

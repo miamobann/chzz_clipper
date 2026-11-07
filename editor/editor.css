@@ -94,3 +94,4 @@ main {
 .fill { height: 100%; width: 0; background: var(--accent); transition: width .15s; }
 #expVideo, #expImage { width: 100%; margin-top: 10px; border-radius: 8px; background: #000; display: block; }
 .mon canvas.gifScreen { width: 100%; height: 100%; object-fit: contain; display: block; }
+.syncHint { color: var(--muted); font-size: 11px; margin-top: 2px; }
