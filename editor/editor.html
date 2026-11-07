@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>교차편집 · 치지직용 간단 클리퍼</title>
+  <link rel="stylesheet" href="editor.css">
+</head>
+<body>
+  <header class="top">
+    <div class="title">
+      <h1>교차편집</h1>
+      <span class="sub" id="sessionInfo"></span>
+    </div>
+    <div class="actions">
+      <button id="autoSync" type="button" title="트랙들의 소리를 비교해서 싱크를 자동으로 맞춥니다">소리로 자동 맞추기</button>
+      <button id="exportBtn" type="button" class="primary">내보내기 (MP4 / 움짤)</button>
+    </div>
+  </header>
+
+  <div id="loading" class="loading">
+    <div class="spinner"></div>
+    <p id="loadingText">탭에서 영상을 가져오는 중…</p>
+  </div>
+
+  <main id="app" hidden>
+    <section class="stage">
+      <div class="program">
+        <canvas id="program" width="1280" height="720"></canvas>
+        <div class="progLabel" id="progLabel"></div>
+        <!-- 크롭 틀: 끌어서 이동, 모서리로 크기 조절 -->
+        <div class="cropBox" id="cropBox" hidden>
+          <span class="cropLabel" id="cropLabel"></span>
+          <i class="h" data-c="nw"></i><i class="h" data-c="ne"></i><i class="h" data-c="sw"></i><i class="h" data-c="se"></i>
+        </div>
+      </div>
+      <div class="cropbar">
+        <label for="cropRatio">화면 자르기</label>
+        <select id="cropRatio">
+          <option value="">자르지 않음</option>
+          <option value="free">자유</option>
+          <option value="16:9">16:9</option>
+          <option value="9:16">9:16 (쇼츠·릴스 세로)</option>
+          <option value="1:1">1:1</option>
+          <option value="4:3">4:3</option>
+        </select>
+        <button id="cropReset" type="button" hidden>원래대로</button>
+        <span class="cropInfo" id="cropInfo">사각형 틀로 원하는 부분만 저장합니다</span>
+      </div>
+      <div class="transport">
+        <button id="playBtn" type="button" class="play" title="재생/멈춤 (Space)">▶</button>
+        <span class="time"><b id="tNow">0:00.0</b> <span class="dim">/ <span id="tLen">0:00.0</span></span></span>
+        <span class="sep"></span>
+        <button id="setIn" type="button" title="지금 위치를 시작으로 (I)">시작 지정 [I]</button>
+        <button id="setOut" type="button" title="지금 위치를 끝으로 (O)">끝 지정 [O]</button>
+        <span class="range" id="rangeInfo"></span>
+        <span class="sep"></span>
+        <button id="undoBtn" type="button" title="되돌리기 (Ctrl+Z)">↶ 되돌리기</button>
+      </div>
+    </section>
+
+    <aside class="monitors" id="monitors" aria-label="트랙(방송) 목록"></aside>
+
+    <section class="timelineWrap">
+      <canvas id="timeline"></canvas>
+    </section>
+
+    <div class="help">
+      <span><kbd>Space</kbd> 재생/멈춤</span>
+      <span><kbd>1</kbd>~<kbd>5</kbd> 그 순간부터 화면 전환 (오른쪽 화면 클릭도 같음)</span>
+      <span><kbd>Shift</kbd>+<kbd>1</kbd>~<kbd>5</kbd> 선택한 구간 전체 바꾸기</span>
+      <span><kbd>←</kbd><kbd>→</kbd> 0.1초 (<kbd>Shift</kbd> 1초) · <kbd>,</kbd><kbd>.</kbd> 한 프레임</span>
+      <span><kbd>I</kbd>/<kbd>O</kbd> 시작/끝 · <kbd>Delete</kbd> 선택한 컷 지우기 · <kbd>Ctrl</kbd>+<kbd>Z</kbd> 되돌리기</span>
+      <span>타임라인: 위쪽 편집 줄의 경계선을 끌면 컷 이동, 아래 트랙 막대를 끌면 그 방송의 싱크 이동</span>
+    </div>
+    <p class="status" id="status" aria-live="polite"></p>
+  </main>
+
+  <!-- 내보내기 창 -->
+  <div class="modal" id="exportModal" hidden>
+    <div class="dialog" role="dialog" aria-labelledby="expTitle">
+      <h2 id="expTitle">MP4로 내보내기</h2>
+      <div id="expForm">
+        <div class="formRow">
+          <label for="expFormat">형식</label>
+          <select id="expFormat">
+            <option value="mp4">영상 MP4 (소리 포함)</option>
+            <option value="webp">움짤 WebP (소리 없음, 최대 15초)</option>
+          </select>
+        </div>
+        <div id="mp4Opts">
+          <div class="formRow">
+            <label for="expHeight">화질</label>
+            <select id="expHeight"></select>
+          </div>
+          <div class="formRow">
+            <label for="expQuality">압축 품질</label>
+            <select id="expQuality">
+              <option value="normal">보통 (파일 작음)</option>
+              <option value="high">높음 (기본)</option>
+              <option value="best">최고 (움직임 많은 장면용)</option>
+            </select>
+          </div>
+          <div class="formRow">
+            <label for="expFps">초당 프레임</label>
+            <select id="expFps">
+              <option value="30">30 fps</option>
+              <option value="60">60 fps</option>
+            </select>
+          </div>
+        </div>
+        <div id="gifOpts" hidden>
+          <div class="formRow">
+            <label for="gifWidth">가로 크기</label>
+            <select id="gifWidth">
+              <option value="320">320px</option>
+              <option value="480">480px</option>
+              <option value="640">640px</option>
+              <option value="720">720px</option>
+              <option value="850">850px</option>
+              <option value="1280">1280px (720p급)</option>
+              <option value="1920">1920px (1080p급)</option>
+            </select>
+          </div>
+          <div class="formRow">
+            <label for="gifFps">초당 프레임</label>
+            <select id="gifFps">
+              <option value="8">8 fps</option>
+              <option value="10">10 fps</option>
+              <option value="12">12 fps</option>
+              <option value="15">15 fps</option>
+              <option value="20">20 fps</option>
+              <option value="24">24 fps</option>
+            </select>
+          </div>
+        </div>
+        <p class="note" id="expInfo"></p>
+        <button id="expTrim" type="button" hidden>범위를 시작부터 15초로 줄이기</button>
+        <p class="note small">개인 감상용 비공식 도구입니다. 저장한 클립의 저작권은 스트리머에게 있으며, 공유·재업로드 시 반드시 스트리머의 허락을 받아야 합니다. 사용에 따른 책임은 사용자에게 있습니다.</p>
+        <div class="dlgButtons">
+          <button id="expCancel" type="button">취소</button>
+          <button id="expStart" type="button" class="primary">내보내기 시작</button>
+        </div>
+      </div>
+      <div id="expProgress" hidden>
+        <div class="bar"><div class="fill" id="expFill"></div></div>
+        <p class="note" id="expStep">준비 중…</p>
+        <div class="dlgButtons"><button id="expAbort" type="button">중단</button></div>
+      </div>
+      <div id="expDone" hidden>
+        <p class="ok" id="expResult"></p>
+        <video id="expVideo" controls playsinline></video>
+        <img id="expImage" alt="내보낸 움짤 미리보기" hidden>
+        <div class="dlgButtons">
+          <button id="expClose" type="button" class="primary">닫기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../shared/defaults.js"></script>
+  <script src="../shared/handle-store.js"></script>
+  <script src="../content/mp4-mux.js"></script>
+  <script src="../content/webp-mux.js"></script>
+  <script src="../shared/yuv.js"></script>
+  <script src="export.js"></script>
+  <script src="editor.js"></script>
+</body>
+</html>

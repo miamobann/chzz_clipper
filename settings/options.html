@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>설정 · 치지직용 간단 클리퍼</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <header class="bar">
+    <div class="brand">치지직용 간단 클리퍼 <span class="tag">비공식</span> <span class="ver" id="ver"></span></div>
+    <nav>
+      <a href="#gif">움짤</a><a href="#video">영상</a><a href="#save">저장 위치</a><a href="#channels">채널</a><a href="#keys">단축키</a><a href="#about">이용 안내</a>
+    </nav>
+    <span class="saved" id="saved" aria-live="polite"></span>
+  </header>
+
+  <main>
+    <!-- ── 움짤 ── -->
+    <section class="card" id="gif">
+      <h2>움짤 (WebP)</h2>
+      <div class="field">
+        <div class="row"><label for="clipSeconds">저장 길이</label><output id="clipSecondsOut"></output></div>
+        <input type="range" id="clipSeconds" min="3" max="15" step="1">
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label for="fps">초당 프레임</label>
+          <select id="fps">
+            <option value="8">8 fps</option>
+            <option value="10">10 fps</option>
+            <option value="12">12 fps (기본)</option>
+            <option value="15">15 fps</option>
+            <option value="20">20 fps</option>
+            <option value="24">24 fps</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="width">가로 크기</label>
+          <select id="width">
+            <option value="320">320px</option>
+            <option value="480">480px (기본)</option>
+            <option value="640">640px</option>
+            <option value="720">720px</option>
+            <option value="850">850px</option>
+            <option value="1280">1280px (720p급)</option>
+            <option value="1920">1920px (1080p급)</option>
+          </select>
+        </div>
+        <div class="field">
+          <div class="row"><label for="quality">화질</label><output id="qualityOut"></output></div>
+          <input type="range" id="quality" min="0.5" max="1" step="0.05">
+        </div>
+      </div>
+      <p class="hint">1280px부터는 부하가 심할 수 있습니다.</p>
+    </section>
+
+    <!-- ── 영상 ── -->
+    <section class="card" id="video">
+      <h2>영상 (MP4 · 소리 포함)</h2>
+      <div class="field">
+        <div class="row"><label for="videoSeconds">저장 길이</label><output id="videoSecondsOut"></output></div>
+        <input type="range" id="videoSeconds" min="5" max="60" step="1">
+        <p class="hint">실제 길이는 최대 2초 더 길 수 있습니다.</p>
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label for="videoHeight">화질</label>
+          <select id="videoHeight">
+            <option value="480">480p</option>
+            <option value="720">720p (기본)</option>
+            <option value="1080">1080p</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="videoFps">초당 프레임</label>
+          <select id="videoFps">
+            <option value="30">30 fps (기본)</option>
+            <option value="60">60 fps</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="videoQuality">압축 품질</label>
+          <select id="videoQuality">
+            <option value="normal">보통 (파일 작음)</option>
+            <option value="high">높음 (기본)</option>
+            <option value="best">최고 (움직임 많은 장면용)</option>
+          </select>
+        </div>
+      </div>
+      <p class="hint" id="qualityInfo"></p>
+      <table class="mini">
+        <thead><tr><th>30fps 기준</th><th>480p</th><th>720p</th><th>1080p</th></tr></thead>
+        <tbody>
+          <tr data-q="normal"><td>보통</td><td>1.8Mbps</td><td>3.5Mbps</td><td>6Mbps</td></tr>
+          <tr data-q="high"><td>높음</td><td>3Mbps</td><td>6Mbps</td><td>10Mbps</td></tr>
+          <tr data-q="best"><td>최고</td><td>4.5Mbps</td><td>9Mbps</td><td>15Mbps</td></tr>
+        </tbody>
+      </table>
+      <p class="hint" style="margin-bottom:14px">숫자가 클수록 움직임이 많은 장면이 덜 뭉개지며, 파일 크기와 버퍼 메모리도 그만큼 커집니다 (1Mbps ≈ 60초에 7.5MB). 60fps는 × 1.4입니다. 바꾸면 지금까지 담긴 버퍼는 비워집니다.</p>
+      <div class="field">
+        <div class="row"><label for="audioSyncMs">소리 싱크 보정</label><output id="audioSyncMsOut"></output></div>
+        <input type="range" id="audioSyncMs" min="-300" max="300" step="10">
+        <p class="hint">영상에서 소리가 빠르면 +, 느리면 −</p>
+      </div>
+    </section>
+
+    <!-- ── 저장 위치 ── -->
+    <section class="card" id="save">
+      <h2>기본 저장 위치</h2>
+      <label class="check"><input type="radio" name="saveMode" value="downloads"> <span>다운로드/<span id="saveFolderText">치지직움짤클립</span>/스트리머명/방송제목｜날짜</span></label>
+      <label class="check"><input type="radio" name="saveMode" value="picked"> 선택한 폴더/스트리머명/방송제목｜날짜</label>
+      <div class="picked">
+        <span class="pickedName" id="pickedName">선택된 폴더 없음</span>
+        <button id="pickFolder" type="button">폴더 선택…</button>
+        <p class="hint" id="pickedState">다운로드 폴더 밖(D 드라이브, 동영상 폴더 등)도 고를 수 있습니다.</p>
+      </div>
+      <label class="check"><input type="radio" name="saveMode" value="ask"> 저장할 때마다 위치 묻기</label>
+      <p class="hint">채널별 폴더는 아래 "채널"에서 정합니다. 교차편집 결과는 기본 저장 위치 안의 "교차편집" 폴더에 저장됩니다.</p>
+    </section>
+
+    <!-- ── 채널 ── -->
+    <section class="card" id="channels">
+      <h2>채널</h2>
+      <p class="hint">한 번이라도 켜거나 폴더를 정한 채널이 표시됩니다. 처음 보는 채널은 움짤·영상이 꺼진 상태로 시작합니다.</p>
+      <div class="chList" id="chList"></div>
+    </section>
+
+    <!-- ── 단축키 ── -->
+    <section class="card" id="keys">
+      <h2>단축키</h2>
+      <table class="keys"><tbody id="keyList"></tbody></table>
+      <div class="buttons"><button id="changeShortcut" type="button">단축키 바꾸기 (크롬 설정 열기)</button></div>
+    </section>
+
+    <!-- ── 이용 안내 ── -->
+    <section class="card" id="about">
+      <h2>이용 안내 및 면책</h2>
+      <ul class="notice">
+        <li>이 확장프로그램은 개인적인 감상·소장 목적으로 만든 비공식 도구이며, 네이버 및 치지직과 관련이 없습니다.</li>
+        <li>저장되는 영상·이미지의 저작권은 해당 스트리머와 원저작자에게 있습니다.</li>
+        <li>저장한 파일을 SNS·커뮤니티·영상 플랫폼 등에 올리거나 공유하려면 반드시 해당 스트리머의 허락을 받아야 합니다. 스트리머가 정한 2차 창작·클립 규정을 따라야 합니다.</li>
+        <li>영리 목적 사용, 무단 재배포, 편집 후 재업로드 등은 저작권법 위반이 될 수 있습니다.</li>
+        <li>이 도구를 사용해 생긴 저작권 침해 및 분쟁의 책임은 사용자 본인에게 있으며, 제작자는 책임지지 않습니다.</li>
+        <li>치지직 이용약관을 지켜서 사용하시기 바랍니다.</li>
+      </ul>
+    </section>
+  </main>
+
+  <template id="chRow">
+    <div class="chRow">
+      <div class="chName"><b class="n"></b><span class="id"></span></div>
+      <label class="mini-switch"><input type="checkbox" class="gif"><span>움짤</span></label>
+      <label class="mini-switch"><input type="checkbox" class="video"><span>영상</span></label>
+      <div class="chFolder"><span class="f"></span></div>
+      <div class="chBtns">
+        <button type="button" class="pick">폴더 지정…</button>
+        <button type="button" class="reset" hidden>기본으로</button>
+        <button type="button" class="del" title="목록에서 지우기 (다시 보면 꺼진 상태로 시작)">지우기</button>
+      </div>
+    </div>
+  </template>
+
+  <script src="../shared/defaults.js"></script>
+  <script src="../shared/channels.js"></script>
+  <script src="../shared/handle-store.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

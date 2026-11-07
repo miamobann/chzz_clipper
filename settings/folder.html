@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>저장 폴더 선택 · 치지직용 간단 클리퍼</title>
+  <link rel="stylesheet" href="folder.css">
+</head>
+<body>
+  <main>
+    <h1 id="title">기본 저장 폴더 선택</h1>
+    <p class="lead" id="lead">움짤과 영상을 자동 저장할 폴더를 고릅니다. 다운로드 폴더 밖도 가능하며, 안에 <b>스트리머별 폴더</b>가 자동으로 만들어집니다.</p>
+
+    <section class="card">
+      <div class="label">현재 저장 폴더</div>
+      <div class="current" id="current">선택된 폴더 없음</div>
+      <div class="state" id="state"></div>
+      <div class="buttons">
+        <button id="pick" type="button" class="primary">폴더 선택…</button>
+        <button id="grant" type="button" hidden>권한 다시 허용</button>
+        <button id="clear" type="button" hidden>선택 해제</button>
+      </div>
+    </section>
+
+    <section class="tips">
+      <h2>참고</h2>
+      <ul>
+        <li>선택 창에서 <b>새 폴더</b>를 만들어 고를 수 있습니다. 예: <code>D:\치지직</code>, <code>동영상\치지직</code></li>
+        <li>사용자 폴더 자체(<code>C:\Users\이름</code>), 윈도우·프로그램 폴더, 드라이브 맨 위(<code>C:\</code>)는 크롬이 막습니다. 그 <b>안에 폴더를 만들어</b> 고르십시오.</li>
+        <li>크롬을 다시 켜면 권한이 다시 필요할 수 있습니다. 확장 아이콘 → <b>권한 다시 허용</b>을 누르십시오. "방문할 때마다 허용"을 고르면 다음부터 묻지 않습니다.</li>
+        <li>권한이 없을 때 저장한 파일은 <b>다운로드/치지직움짤클립/스트리머명/방송제목｜날짜</b>에 대신 저장됩니다.</li>
+        <li>크롬은 보안상 전체 경로(C:\…)를 표시하지 않습니다.</li>
+      </ul>
+    </section>
+    <p class="done" id="done" aria-live="polite"></p>
+  </main>
+  <script src="../shared/defaults.js"></script>
+  <script src="../shared/channels.js"></script>
+  <script src="../shared/handle-store.js"></script>
+  <script src="folder.js"></script>
+</body>
+</html>
