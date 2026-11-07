@@ -615,8 +615,10 @@
     return { vs, as: aChunks.slice(), info: vInfo, ai: aInfo || null, shift0: audioShift(), vOff };
   }
 
+  let snapFail = null; // 영상 스냅샷을 못 만든 이유 (움짤 버퍼로 대신 열 때 표시)
   async function takeSnapshot(session, fromTs = null) {
     const s = shared();
+    snapFail = !on() ? null : !video ? '영상 없음' : !vInfo ? '영상 압축기 준비 안 됨' : vChunks.length < 2 ? `영상 버퍼 비어 있음 (${diagnose() || '재생 직후'})` : null;
     if (!s || !on() || !video || vChunks.length < 2 || !vInfo) return null;
     try { if (vEncoder && vEncoder.state === 'configured') await withTimeout(vEncoder.flush(), 1500); } catch (_) {}
     try { if (aEncoder && aEncoder.state === 'configured') await withTimeout(aEncoder.flush(), 1000); } catch (_) {}
@@ -627,7 +629,10 @@
   async function buildSnapshot(session, st) {
     const s = shared();
     const { vs, as, info, ai } = st;
-    if (!s || !info || vs.length < 2 || (info.kind === 'avc' && !info.description)) return null;
+    if (!s || !info || vs.length < 2 || (info.kind === 'avc' && !info.description)) {
+      snapFail = !info ? '영상 압축기 준비 안 됨' : vs.length < 2 ? '영상이 너무 짧음' : 'H.264 설정 정보 없음';
+      return null;
+    }
     const t0 = vs[0].timestamp; // 키프레임으로 시작
     const frameUs = 1e6 / info.fps;
     const tEnd = vs[vs.length - 1].timestamp + frameUs;
@@ -730,7 +735,7 @@
     const g = s && s.gifSnapshotData ? await s.gifSnapshotData() : null;
     if (!g) return null;
     const { parts, bytes } = splitParts(g.list.map(f => ({ data: f.data, ts: f.ts, key: true })), []);
-    const meta = { ...g.meta, bytes, parts: parts.length };
+    const meta = { ...g.meta, bytes, parts: parts.length, note: on() && snapFail ? snapFail : null };
     keepSnapshot(session, meta, parts);
     return meta;
   }

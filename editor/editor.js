@@ -748,6 +748,57 @@
       (S.crop ? `\n화면 자르기: ${cropLabelText()} → 결과 ${outSizeText()}` : '');
     $('expTrim').hidden = !tooLong;
     $('expStart').disabled = tooLong;
+    updateSizeEstimate();
+  }
+
+  // ── 예상 용량 ──
+  //   MP4: 가져온 영상의 실제 초당 용량 × 길이 × (결과 화소 / 원본 화소) × 압축 품질 비율
+  //   움짤: 현재 장면 한 장을 결과 크기·화질로 실제 압축해 본 크기 × 장 수
+  const Q_FACTOR = { normal: 0.6, high: 1, best: 1.5 };
+  let estimateSeq = 0;
+  async function updateSizeEstimate() {
+    const el = $('expEstimate');
+    if (!el) return;
+    const seq = ++estimateSeq;
+    const segs = exportSegments();
+    const dur = Math.max(0, S.outT - S.inT);
+    const mb = n => (n >= 1048576 ? (n / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(n / 1024)) + 'KB');
+    if (!segs.length || !dur) { el.textContent = ''; return; }
+    const [ow, oh] = outSizeText().split('×').map(Number);
+    if (!isGifFormat()) {
+      const fps = Number($('expFps').value) || 30;
+      const cfg = await chrome.storage.sync.get(globalThis.CHZZK_CLIP_DEFAULTS).catch(() => globalThis.CHZZK_CLIP_DEFAULTS);
+      const q = $('expQuality').value;
+      let bytes = 0;
+      for (const sg of segs) {
+        const tr = S.tracks[sg.track], m = tr.meta;
+        const len = sg.end - sg.start;
+        let bps;
+        if (tr.isGif || !(m.bytes > 0) || !(m.durationUs > 0)) bps = globalThis.CHZZK_VIDEO_BITRATE(oh, fps, q) / 8;
+        else {
+          const src = m.bytes / (m.durationUs / 1e6);                       // 원본 초당 용량 (소리 포함)
+          const px = (ow * oh) / (m.video.width * m.video.height);
+          bps = src * Math.min(1.5, Math.max(0.15, px)) * (Q_FACTOR[q] / (Q_FACTOR[cfg.videoQuality] || 1)) * (fps > 30 && m.video.fps <= 30 ? 1.4 : 1);
+        }
+        bytes += bps * len;
+      }
+      if (seq === estimateSeq) el.textContent = `예상 용량: 약 ${mb(bytes)} (실제와 다를 수 있습니다)`;
+      return;
+    }
+    // 움짤: 한 장 시험 압축
+    el.textContent = '예상 용량 계산 중…';
+    try {
+      const tr = S.tracks[segs[0].track];
+      const src = tr.isGif ? tr.bmp : tr.el;
+      const c = new OffscreenCanvas(ow, oh), x = c.getContext('2d', { alpha: false });
+      x.imageSmoothingQuality = 'high';
+      if (src) x.drawImage(src, 0, 0, ow, oh);
+      const b = await c.convertToBlob({ type: 'image/webp', quality: gifQuality });
+      const frames = Math.ceil(dur * (Number($('gifFps').value) || 12));
+      if (seq === estimateSeq) el.textContent = `예상 용량: 약 ${mb(b.size * frames * 1.05)} (${frames}장 · 장면에 따라 다를 수 있습니다)`;
+    } catch (_) {
+      if (seq === estimateSeq) el.textContent = '';
+    }
   }
   function openExport() {
     if (!S.tracks.length) return;
@@ -769,6 +820,7 @@
       $('gifFps').value = String([8, 10, 12, 15, 20, 24].includes(+cfg.fps) ? cfg.fps : 12);
       gifQuality = Number(cfg.quality) || 0.8;
       $('expQuality').value = ['normal', 'high', 'best'].includes(cfg.videoQuality) ? cfg.videoQuality : 'high';
+      refreshExportForm();
     }).catch(() => {});
     refreshExportForm();
     $('expForm').hidden = false; $('expProgress').hidden = true; $('expDone').hidden = true;
@@ -824,7 +876,7 @@
   $('expAbort').addEventListener('click', () => { if (exportSignal) exportSignal.aborted = true; });
   $('expClose').addEventListener('click', closeExport);
   $('expFormat').addEventListener('change', refreshExportForm);
-  for (const id of ['expHeight', 'gifWidth']) $(id).addEventListener('change', refreshExportForm); // 결과 크기 갱신
+  for (const id of ['expHeight', 'gifWidth', 'expFps', 'gifFps', 'expQuality']) $(id).addEventListener('change', refreshExportForm); // 결과 크기·예상 용량 갱신
   let exportFormatTouched = false;
   $('expFormat').addEventListener('change', () => { exportFormatTouched = true; });
   $('expTrim').addEventListener('click', () => { pushHistory(); S.outT = Math.min(S.L, S.inT + GIF_MAX); refreshExportForm(); });
@@ -876,6 +928,7 @@
       resizeTimeline();
       const notes = [];
       if (failures.length) notes.push(`${failures.length}개 탭은 가져오지 못했습니다 (${failures[0]})`);
+      for (const tr of S.tracks) if (tr.isGif && tr.meta.note) notes.push(`${tr.name}: 영상 버퍼를 가져오지 못해 움짤 버퍼(소리 없음)로 열었습니다 — ${tr.meta.note}`);
       if (skipped) notes.push(`영상이 꺼졌거나 준비 안 된 탭 ${skipped}개 제외`);
       setStatus(notes.length ? notes.join(' · ') : TRIM
         ? '타임라인 위의 초록 표시(시작·끝)를 끌거나 I / O 키로 범위를 정한 뒤 "저장하기"를 누르십시오.'
