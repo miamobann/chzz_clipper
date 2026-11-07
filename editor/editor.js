@@ -933,7 +933,6 @@
       setStatus(notes.length ? notes.join(' · ') : TRIM
         ? '타임라인 위의 초록 표시(시작·끝)를 끌거나 I / O 키로 범위를 정한 뒤 "저장하기"를 누르십시오.'
         : 'Space로 재생하고, 원하는 순간에 숫자키(1~5)를 누르면 화면이 바뀝니다.', notes.length ? 'warn' : '');
-      if (params.has('debug')) window.__editor = S; // 자동 테스트용
       requestAnimationFrame(tick);
     } catch (err) {
       $('loadingText').textContent = err.message || String(err);

@@ -120,8 +120,7 @@ async function openEditor(activeTab, trimTabId = null, fromRec = false) {
     if (!shown && target) flashBadge(target.id);
     return { ok: false, error: text };
   }
-  const { debug } = await chrome.storage.local.get('debug'); // 자동 테스트용
-  const url = chrome.runtime.getURL('editor/editor.html') + (debug ? '?debug=1&' : '?') +
+  const url = chrome.runtime.getURL('editor/editor.html') + '?' +
     `session=${session}&tabs=${ready.map(r => r.tabId).join(',')}&skipped=${trim ? 0 : skipped}` + (trim ? '&mode=trim' : '') + (fromRec ? '&rec=1' : '');
   await chrome.tabs.create({ url });
   return { ok: true, count: ready.length };
