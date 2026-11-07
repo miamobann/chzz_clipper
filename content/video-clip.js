@@ -31,6 +31,7 @@
   let lastMediaTime = null;
   // 영상·소리 시계 차이: (도착 시각 − 타임스탬프)의 최솟값
   let vOff = Infinity, aOff = Infinity;
+  let aJump = 0; // 소리 시계가 튄 것으로 보이는 연속 횟수
   let wasPaused = false;
   let problem = null;                   // 실패 이유
   let canvas = null, ctx = null;
@@ -52,6 +53,7 @@
   let vTrack = null;
   let waitingSince = 0;               // 영상 트랙 대기 시작 시각
   let lastFrameAt = 0;                // 마지막 프레임 도착 시각
+  let lastTsAt = 0;                   // lastFrameTs를 기록한 실제 시각
 
   function pick(s) {
     const clamp = (v, lo, hi, d) => (Number.isFinite(+v) ? Math.min(hi, Math.max(lo, +v)) : d);
@@ -166,8 +168,10 @@
   }
 
   // 소리 타임스탬프 → 영상 시계 보정값(µs)
-  function audioShift() {
-    return Number.isFinite(aOff) && Number.isFinite(vOff) ? aOff - vOff : 0;
+  // c: 소리 조각 (조각마다 받을 당시의 시계 차이 off를 기록 — 중간에 소리 시계가 튀어도 맞음)
+  function audioShift(c) {
+    const a = c && Number.isFinite(c.off) ? c.off : aOff;
+    return Number.isFinite(a) && Number.isFinite(vOff) ? a - vOff : 0;
   }
 
   // 1.5초 넘게 건너뛰면 새로 담기
@@ -211,6 +215,8 @@
     if (video.paused || video.ended) return; // 일시정지
     const ts = frame.timestamp; // µs
     if (ts < lastFrameTs) { clearBuffer(); lastFrameTs = -Infinity; } // 시간 역행(소스 교체 등)
+    // 영상 시계가 실제 경과보다 2초 넘게 앞으로 튀면 (소스 교체 등) 새로 담기 — 소리 정렬이 어긋나는 것 방지
+    else if (Number.isFinite(lastFrameTs) && (ts - lastFrameTs) - (performance.now() - lastTsAt) * 1000 > 2e6) { clearBuffer(); lastFrameTs = -Infinity; }
     if (ts - lastFrameTs < (1e6 / settings.videoFps) * 0.85) return; // fps 간격
     vOff = Math.min(vOff, performance.now() * 1000 - ts);
 
@@ -273,6 +279,7 @@
     const keyFrame = forceKey || ts - lastKeyTs >= CONST.KEYFRAME_INTERVAL_US;
     if (keyFrame) { forceKey = false; lastKeyTs = ts; }
     lastFrameTs = ts;
+    lastTsAt = performance.now();
     lastMediaTime = video.currentTime;
     frameSrcH.set(ts, srcH);
     const opts = { keyFrame };
@@ -389,7 +396,12 @@
       if (!aEncoder) return;
     }
     if (aEncoder.encodeQueueSize > 20) return;
-    aOff = Math.min(aOff, performance.now() * 1000 - data.timestamp);
+    // 소리 시계 차이: 최솟값 유지. 단 소리 타임스탬프가 뒤로 튀면(플레이어 소리 재시작 등)
+    // 차이가 1초 넘게 커진 상태가 이어지므로, 그때는 새 값으로 다시 맞춤
+    const off = performance.now() * 1000 - data.timestamp;
+    if (!Number.isFinite(aOff) || off < aOff) { aOff = off; aJump = 0; }
+    else if (off - aOff > 1e6) { if (++aJump > 15) { aOff = off; aJump = 0; } }
+    else aJump = 0;
     aEncoder.encode(data);
   }
 
@@ -436,7 +448,7 @@
     if (!vChunks.length) return;
     const data = new Uint8Array(chunk.byteLength);
     chunk.copyTo(data);
-    aChunks.push({ data, timestamp: chunk.timestamp, duration: chunk.duration || 0 });
+    aChunks.push({ data, timestamp: chunk.timestamp, duration: chunk.duration || 0, off: aOff });
     bufferBytes += data.length;
   }
 
@@ -459,9 +471,8 @@
       vChunks.splice(0, next);
     }
     const first = vChunks[0].timestamp;
-    const shift = audioShift();
     let drop = 0;
-    while (drop < aChunks.length && aChunks[drop].timestamp + shift < first - 100000) {
+    while (drop < aChunks.length && aChunks[drop].timestamp + audioShift(aChunks[drop]) < first - 100000) {
       bufferBytes -= aChunks[drop].data.length;
       drop++;
     }
@@ -507,8 +518,7 @@
       // 소리를 영상 시계로 옮겨 구간 안의 것만 사용
       // 복사한 소리는 스피커 출력 전이라 빠름 → 출력 지연 + 캡처 지연(반 프레임) + 사용자 보정만큼 늦춤
       const delayUs = (await outputLatencyUs()) + frameUs / 2 + settings.audioSyncMs * 1000;
-      const shift = audioShift() + delayUs;
-      const aPart = as.map(c => ({ data: c.data, duration: c.duration, timestamp: c.timestamp + shift }))
+      const aPart = as.map(c => ({ data: c.data, duration: c.duration, timestamp: c.timestamp + audioShift(c) + delayUs }))
         .filter(c => c.timestamp >= t0 && c.timestamp < tEnd);
 
       const out = globalThis.ChzzkMp4Mux.muxMp4({
@@ -612,7 +622,7 @@
   function captureState(fromTs) {
     let vs = vChunks.slice();
     if (fromTs != null) { const k = vs.findIndex(c => c.timestamp >= fromTs && c.key); if (k > 0) vs = vs.slice(k); }
-    return { vs, as: aChunks.slice(), info: vInfo, ai: aInfo || null, shift0: audioShift(), vOff };
+    return { vs, as: aChunks.slice(), info: vInfo, ai: aInfo || null, vOff };
   }
 
   let snapFail = null; // 영상 스냅샷을 못 만든 이유 (움짤 버퍼로 대신 열 때 표시)
@@ -637,10 +647,13 @@
     const frameUs = 1e6 / info.fps;
     const tEnd = vs[vs.length - 1].timestamp + frameUs;
     const delayUs = (await outputLatencyUs()) + frameUs / 2 + settings.audioSyncMs * 1000;
-    const shift = st.shift0 + delayUs;
+    const shiftOf = c => {
+      const a = Number.isFinite(c.off) ? c.off : aOff;
+      return (Number.isFinite(a) && Number.isFinite(st.vOff) ? a - st.vOff : 0) + delayUs;
+    };
 
     const vList = vs.map(c => ({ data: c.data, ts: c.timestamp - t0, key: c.key }));
-    const aList = ai ? as.map(c => ({ data: c.data, ts: c.timestamp + shift - t0, dur: c.duration || 0 }))
+    const aList = ai ? as.map(c => ({ data: c.data, ts: c.timestamp + shiftOf(c) - t0, dur: c.duration || 0 }))
       .filter(c => c.ts >= 0 && c.ts < tEnd - t0) : [];
 
     // 실제 시각(µs): 탭 시계 → 공통 시계
